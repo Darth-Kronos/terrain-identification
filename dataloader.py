@@ -43,5 +43,5 @@ sampler = WeightedRandomSampler(
 )
 
 train_dataloader = DataLoader(
-    train_dataset, batch_size=BATCH_SIZE, num_workers=8, drop_last=True, sampler=sampler
+    train_dataset, batch_size=BATCH_SIZE, drop_last=True, sampler=sampler
 )
