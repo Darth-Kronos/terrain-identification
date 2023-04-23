@@ -5,13 +5,13 @@ import os
 from collections import Counter
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-
+from scipy import stats
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
 
 # train_data_root = "./data/train_data.csv"
-train_data_root = "/Users/purushothamanyadav/Documents/NCSU/Spring23/NN/Project/ProjC/terrain-identification/data/train_data.csv"
+train_data_root = "/Users/purushothamanyadav/Documents/NCSU/Spring23/NN/Project/ProjC/terrain-identification/data/TrainingData/filtered_120_60"
 
 SUBJECT_X_TEMPLATE = "subject_{}_{}__x.csv"
 SUBJECT_X_TIME_TEMPLATE = "subject_{}_{}__x_time.csv"
@@ -30,69 +30,56 @@ def parse_uid(uid):
 
 class SubjectDataset(Dataset):
 
-    def __init__(self, datapath: str, ids: list):
+    def __init__(self, datapath, ids, scaler=None, test=False):
         
         self.ids = ids
         self.datapath = datapath
-        self.y_files = {uid: os.path.join(self.datapath, SUBJECT_Y_TEMPLATE.format(parse_uid(uid)[0], parse_uid(uid)[1])) for uid in self.ids}
-        self.x_files = {uid: os.path.join(self.datapath, SUBJECT_X_TEMPLATE.format(parse_uid(uid)[0], parse_uid(uid)[1])) for uid in self.ids}
+        self.data_files = {uid: os.path.join(self.datapath, SUBJECT_X_TEMPLATE.format(parse_uid(uid)[0], parse_uid(uid)[1])) for uid in self.ids}
+        self.scaler = scaler
+        timesteps = None
+        self.X = []
+        self.Y = []
+        for uid in ids:
+            # print(f"Converting uid {uid}")
+            data_path = os.path.join(self.datapath, SUBJECT_X_TEMPLATE.format(parse_uid(uid)[0], parse_uid(uid)[1]))
+
+            data = pd.read_csv(data_path)
+
+            if timesteps is None:
+                _sample = data[data["timestamp"] == 0]
+                timesteps = len(_sample)
+            
+            if len(self.X) == 0:
+                self.X = data[X_HEADER].values
+
+            else:
+                self.X = np.vstack([self.X, data[X_HEADER].values])
+
+            if not test:
+                temp_label = np.int_(data['label'].values.reshape(-1, timesteps))
+                if len(self.Y) == 0:
+                    self.Y = stats.mode(temp_label, axis=1, keepdims=True)[0]
+                else:
+                    self.Y = np.vstack([self.Y, stats.mode(temp_label, axis=1, keepdims=True)[0]])
+
+        if self.scaler == None:
+            self.scaler = StandardScaler()
+            self.scaler.fit(self.X)
         
-        # Generate a list of samples and determine the number of datapoints in the dataset 
-        # and build up the cache
-        self.build_cache_and_datalen()
+        self.X = self.scaler.transform(self.X)
+        
+        self.X = self.X.reshape(-1, timesteps, len(X_HEADER))
 
     def __len__(self):
-        return self.num_samples
+        return self.X.shape[0]
 
     def __getitem__(self, index):
         
         inputs = self.X[index]
-        labels = np.array([self.y[index]])
+        labels = self.Y[index]
 
-        return torch.from_numpy(inputs), torch.from_numpy(labels)
+        return torch.from_numpy(inputs), torch.from_numpy(labels).squeeze()
 
-    def build_cache_and_datalen(self):
-
-        num_samples = 0
-        timesteps = None
-
-        X_list = []
-        y_list = []
-
-        for uid, y_file in self.y_files.items():
-            # print(f"Converting uid {uid}")
-            y = pd.read_csv(y_file)
-            n_samples = len(y)
-            num_samples += n_samples
-
-            x_file = self.x_files[uid]
-            X_dataframe = pd.read_csv(x_file)
-            if timesteps is None:
-                _sample = X_dataframe[X_dataframe["timestamp"] == 0]
-                timesteps = len(_sample)
-
-            # Convert to numpy
-            X = self.dataframe_to_numpy(X_dataframe, timesteps, y)
-
-            X_list.append(X)
-            y_list.append(y["label"].values)
-
-        self.X = np.concatenate(X_list, axis=0).astype(np.float32)
-        self.y = np.concatenate(y_list, axis=0).astype(int)
-        assert self.X.shape[0] == self.y.shape[0]
-        
-        self.num_samples = self.X.shape[0]
-
-    def dataframe_to_numpy(self, df, timesteps, y_df):
-        """Convert from pandas to numpy for faster access
-        """
-        len_array = int(len(df) / timesteps)
-        assert len_array == len(y_df)
-
-        values = df[X_HEADER].values
-        X = values.reshape(len_array, timesteps, len(X_HEADER))
-        
-        return np.transpose(X, axes=(0, 2, 1)).copy()
 
 split_ids = {'train': ['005_02',
   '001_06',
@@ -120,14 +107,14 @@ split_ids = {'train': ['005_02',
   ],
  'val': ['001_08', '002_01', '001_01', '001_04', '006_03','007_02','008_01'],
 }
-train_data_path = '/Users/purushothamanyadav/Documents/NCSU/Spring23/NN/Project/ProjC/terrain-identification/data/TrainingData/filtered_window_1'
+train_data_path = '/Users/purushothamanyadav/Documents/NCSU/Spring23/NN/Project/ProjC/terrain-identification/data/TrainingData/filtered_120_60'
 train_dataset = SubjectDataset(
     train_data_path, 
     split_ids["train"]
 )
-ys = train_dataset.y.tolist()
-counts = Counter(ys)
-weights = np.array([1./counts[_y] for _y in ys])
+ys = train_dataset.Y.T.tolist()
+counts = Counter(ys[0])
+weights = np.array([1./counts[_y] for _y in ys[0]])
 sample_weights = torch.from_numpy(weights).float()
 sampler = WeightedRandomSampler(
     weights=sample_weights,
@@ -138,10 +125,11 @@ train_iterations = (len(train_dataset) // BATCH_SIZE) + ((len(train_dataset) % B
 
 val_dataset = SubjectDataset(
     train_data_path, 
-    split_ids["val"]
+    split_ids["val"],
+    scaler=train_dataset.scaler
 )
 val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
-val_iterations = (len(val_dataset) // BATCH_SIZE) + ((len(val_dataset) % BATCH_SIZE) != 0)
+
 
 """
 class dataset(Dataset):
