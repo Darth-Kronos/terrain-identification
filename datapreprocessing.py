@@ -2,9 +2,18 @@ import pandas as pd
 import numpy as np
 import glob
 import os
+import os
+import sys
+import numpy as np 
+import math
+import matplotlib.pyplot as plt
+from scipy.fftpack import fft
+from scipy import signal
+from mpl_toolkits.mplot3d import Axes3D
+from tqdm import tqdm
 
 
-data_root = "data/TestData/"
+data_root = "/Users/purushothamanyadav/Documents/NCSU/Spring23/NN/Project/ProjC/terrain-identification/data/TestData/"
 # data_root = "data/TestData/"
 X_TIME = "subject_{}_{}__x_time.csv"
 X_DATA = "subject_{}_{}__x.csv"
@@ -17,6 +26,26 @@ SAMPLING_RATE_Y = 10 # Hz
 
 X_HEADER = ["acc_x", "acc_y", "acc_z", "gyro_x", "gyro_y", "gyro_z"]
 Y_HEADER = ["label"]
+
+fs=40
+cutoff=10
+l_filter = 155
+
+def median_filter(data, f_size):
+	lgth, num_signal=data.shape
+	f_data=np.zeros([lgth, num_signal])
+	for i in range(num_signal):
+		f_data[:,i]=signal.medfilt(data[:,i], f_size)
+	return f_data
+
+def freq_filter(data, f_size, cutoff):
+	lgth, num_signal=data.shape
+	f_data=np.zeros([lgth, num_signal])
+	lpf=signal.firwin(f_size, cutoff, window='hamming')
+	for i in range(num_signal):
+		f_data[:,i]=signal.convolve(data[:,i], lpf, mode='same')
+	return f_data
+
 
 def get_windowed_data(x: pd.DataFrame, 
                         interval: float, 
@@ -141,7 +170,7 @@ def downsample(x, y, test, win_len=0.1):
 
 
 def preprocess(interval, test):
-    save_path = data_root + f"window_{interval}"
+    save_path = data_root + f"filtered_window_{interval}"
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     files_x_data = sorted(glob.glob(data_root + X_DATA.format("*", "*")))
@@ -154,7 +183,7 @@ def preprocess(interval, test):
 
     merged_data = pd.DataFrame()
 
-    for i in range(len(files_x_data)):
+    for i in tqdm(range(len(files_x_data)), total=len(files_x_data)):
         if not test:
             y_data = pd.read_csv(files_y_data[i], names=["label"])
         else:
@@ -165,9 +194,15 @@ def preprocess(interval, test):
             files_x_data[i],
             names=X_HEADER,
         )
+        median_data=median_filter(x_data.values, l_filter)
+        lpf_data=freq_filter(x_data.values, l_filter, cutoff/fs)
+        comb_data=freq_filter(median_data, l_filter, cutoff/fs)
+        filtered_data = pd.DataFrame(comb_data, columns=X_HEADER)
+        filtered_data['session'] = files_x_data[i].split('/')[-1]
+        # merged_data = pd.concat([merged_data, filtered_data], axis=0)
         x_time = pd.read_csv(files_x_time[i], names=["time"])
 
-        x_data = pd.concat([x_data, x_time], axis=1)
+        x_data = pd.concat([filtered_data, x_time], axis=1)
         y_data = pd.concat([y_data, y_time], axis=1)
         y_data = y_data.reset_index(drop=False).rename(columns={"index": "timestamp"})
 
@@ -184,8 +219,8 @@ def preprocess(interval, test):
         # Save the data separately
         x_path = os.path.join(save_path,files_x_data[i].split('/')[-1])
         windowed_data.to_csv(x_path, index = False)
+    # merged_data.to_csv('test_filt_merg.csv', index=False)
 
+# if __name__ == '__main__':
 
-if __name__ == '__main__':
-    
-    preprocess(interval=3, test=True)
+preprocess(interval=1, test=True)

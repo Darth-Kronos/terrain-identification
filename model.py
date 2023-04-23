@@ -24,20 +24,20 @@ class BRNN(torch.nn.Module):
         return out
     
 class OneDConvNet(nn.Module):
-  def __init__(self, n_features, n_classes, base_filters=32):
+  def __init__(self, n_features, n_classes, base_filters=32, mul=120):
     super(OneDConvNet, self).__init__()
 
     self.conv1 = nn.Conv1d(in_channels=n_features, out_channels=base_filters, kernel_size=3, stride=1, padding=1)
-    self.norm1 = nn.LayerNorm(base_filters*120)
+    self.norm1 = nn.LayerNorm(base_filters*mul)
     self.pool1 = nn.AvgPool1d(kernel_size=2, stride=2)
     self.conv2 = nn.Conv1d(in_channels=base_filters, out_channels=base_filters*2, kernel_size=3, stride=1, padding=1)
-    self.norm2 = nn.LayerNorm(base_filters*2*60)
+    self.norm2 = nn.LayerNorm(base_filters*mul)
     self.pool2 = nn.AvgPool1d(kernel_size=2, stride=2)
     self.conv3 = nn.Conv1d(in_channels=base_filters*2, out_channels=base_filters*4, kernel_size=3, stride=1, padding=1)
-    self.norm3 = nn.LayerNorm(base_filters*4*30)
+    self.norm3 = nn.LayerNorm(base_filters*mul)
     self.pool3 = nn.AvgPool1d(kernel_size=2, stride=2)
     self.conv4 = nn.Conv1d(in_channels=base_filters*4, out_channels=base_filters*8, kernel_size=3, stride=1, padding=1)
-    self.norm4 = nn.LayerNorm(base_filters*8*15)
+    self.norm4 = nn.LayerNorm(base_filters*mul)
     self.fc1 = nn.Linear(base_filters*8, base_filters*16)
     self.dropout5 = nn.Dropout(0.4)
     self.fc2 = nn.Linear(base_filters*16, n_classes)

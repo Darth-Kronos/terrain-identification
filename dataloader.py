@@ -120,7 +120,7 @@ split_ids = {'train': ['005_02',
   ],
  'val': ['001_08', '002_01', '001_01', '001_04', '006_03','007_02','008_01'],
 }
-train_data_path = '/Users/purushothamanyadav/Documents/NCSU/Spring23/NN/Project/ProjC/terrain-identification/data/TrainingData/window_3'
+train_data_path = '/Users/purushothamanyadav/Documents/NCSU/Spring23/NN/Project/ProjC/terrain-identification/data/TrainingData/filtered_window_1'
 train_dataset = SubjectDataset(
     train_data_path, 
     split_ids["train"]
@@ -133,14 +133,14 @@ sampler = WeightedRandomSampler(
     weights=sample_weights,
     num_samples=len(sample_weights),
     replacement=True)
-train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, sampler=sampler)
+train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, sampler=sampler, drop_last=True)
 train_iterations = (len(train_dataset) // BATCH_SIZE) + ((len(train_dataset) % BATCH_SIZE) != 0)
 
 val_dataset = SubjectDataset(
     train_data_path, 
     split_ids["val"]
 )
-val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=True)
+val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
 val_iterations = (len(val_dataset) // BATCH_SIZE) + ((len(val_dataset) % BATCH_SIZE) != 0)
 
 """
