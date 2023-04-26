@@ -13,7 +13,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from tqdm import tqdm
 
 
-data_root = "/Users/purushothamanyadav/Documents/NCSU/Spring23/NN/Project/ProjC/terrain-identification/data/TestData/"
+data_root = "terrain-identification/data/TestData/"
 # data_root = "data/TestData/"
 X_TIME = "subject_{}_{}__x_time.csv"
 X_DATA = "subject_{}_{}__x.csv"
@@ -52,16 +52,7 @@ def get_windowed_data(x: pd.DataFrame,
                         y=None, 
                         window_type: str="centered") -> pd.DataFrame:
     
-    """Slice session data into intervals
-
-    Args:
-        x (pd.DataFrame): Data from a session
-        interval (float): Time interval in seconds
-        y (Union[pd.DataFrame, None], optional): Label reference for windowing. This will only be used during training. Defaults to None.
-        window_type (str, optional): Type of windowing. Should be one of "centered" or "trailing". Defaults to "centered".
-                                        "centered" means the window will be centered around the anchor time. 
-                                        "trailing" means the window will consider samples before the anchor time.
-    """
+   
     assert window_type in ["centered", "trailing"]
     if y is None:
         windowed_data = get_windows_without_labels(x, interval, window_type)
@@ -84,19 +75,7 @@ def get_windows_with_labels(
                             y: pd.DataFrame, 
                             interval: float, 
                             window_type: str="centered") -> pd.DataFrame:
-    """Split data into windows with time from y as anchor points
 
-    Args:
-        x (pd.DataFrame): Sequential data from a session
-        y (pd.DataFrame): Sequential labels from a session
-        interval (float): Time interval of the window
-        window_type (str, optional): Type of windowing. Should be one of "centered" or "trailing". Defaults to "centered".
-                                        "centered" means the window will be centered around the anchor time. 
-                                        "trailing" means the window will consider samples before the anchor time.
-
-    Returns:
-        pd.DataFrame: Windowed data
-    """
     
     centers = y["time"]
     windowed_signal = trunc_centered(x, centers, interval)
@@ -214,13 +193,10 @@ def preprocess(interval, test):
             y_data[['timestamp', 'label']].to_csv(y_path, index = False)
 
             windowed_data = windowed_data.drop('label', axis = 1)
-        # print(windowed_data.head())
-        # break    
-        # Save the data separately
+        
         x_path = os.path.join(save_path,files_x_data[i].split('/')[-1])
         windowed_data.to_csv(x_path, index = False)
     # merged_data.to_csv('test_filt_merg.csv', index=False)
 
-# if __name__ == '__main__':
 
 preprocess(interval=1, test=True)
